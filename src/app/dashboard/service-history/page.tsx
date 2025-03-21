@@ -4,11 +4,13 @@ import DashboardNavbar from "@/components/dashboard-navbar";
 import { useRouter } from "next/navigation";
 import { createClient } from "../../../../supabase/client";
 import { useEffect, useState } from "react";
+import AddServiceHistoryModal from "@/components/add-service-history-modal";
 
 export default function ServiceHistory() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -122,7 +124,7 @@ export default function ServiceHistory() {
             <div className="flex justify-center">
               <button
                 className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded w-full md:w-64 transition-colors"
-                onClick={() => console.log("Add Service History clicked")}
+                onClick={() => setIsModalOpen(true)}
               >
                 Add Service History
               </button>
@@ -136,6 +138,17 @@ export default function ServiceHistory() {
           </div>
         </div>
       </main>
+
+      {/* Add Service History Modal */}
+      <AddServiceHistoryModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSubmit={(serviceHistory) => {
+          console.log("Service history submitted:", serviceHistory);
+          // TODO: Save service history to database
+          setIsModalOpen(false);
+        }}
+      />
     </div>
   );
 }
