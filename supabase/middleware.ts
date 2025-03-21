@@ -2,8 +2,6 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
 export const updateSession = async (request: NextRequest) => {
-  // This `try/catch` block is only here for the interactive tutorial.
-  // Feel free to remove once you have Supabase connected.
   try {
     // Create an unmodified response
     let response = NextResponse.next({
@@ -17,21 +15,51 @@ export const updateSession = async (request: NextRequest) => {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
+          get(name) {
+            return request.cookies.get(name)?.value;
+          },
           getAll() {
             return request.cookies.getAll().map(({ name, value }) => ({
               name,
               value,
             }));
           },
+          set(name, value, options) {
+            request.cookies.set({
+              name,
+              value,
+              ...options,
+            });
+            response.cookies.set({
+              name,
+              value,
+              ...options,
+            });
+          },
+          remove(name, options) {
+            request.cookies.set({
+              name,
+              value: "",
+              ...options,
+            });
+            response.cookies.set({
+              name,
+              value: "",
+              ...options,
+            });
+          },
           setAll(cookiesToSet) {
             cookiesToSet.forEach(({ name, value, options }) => {
-              request.cookies.set(name, value);
-              response = NextResponse.next({
-                request: {
-                  headers: request.headers,
-                },
+              request.cookies.set({
+                name,
+                value,
+                ...options,
               });
-              response.cookies.set(name, value, options);
+              response.cookies.set({
+                name,
+                value,
+                ...options,
+              });
             });
           },
         },
@@ -40,21 +68,31 @@ export const updateSession = async (request: NextRequest) => {
 
     // This will refresh session if expired - required for Server Components
     // https://supabase.com/docs/guides/auth/server-side/nextjs
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser();
+    try {
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
 
-    // protected routes
-    if (request.nextUrl.pathname.startsWith("/dashboard") && error) {
-      return NextResponse.redirect(new URL("/sign-in", request.url));
+      // protected routes
+      if (request.nextUrl.pathname.startsWith("/dashboard") && error) {
+        return NextResponse.redirect(new URL("/sign-in", request.url));
+      }
+
+      // Return the response without modifying it further
+      return response;
+    } catch (e) {
+      console.error("Error in auth.getUser():", e);
+      // If there's an error with auth, still allow access to non-protected routes
+      if (request.nextUrl.pathname.startsWith("/dashboard")) {
+        return NextResponse.redirect(new URL("/sign-in", request.url));
+      }
+      return response;
     }
-
-    return response;
   } catch (e) {
+    console.error("Supabase middleware error:", e);
     // If you are here, a Supabase client could not be created!
     // This is likely because you have not set up environment variables.
-    // Check out http://localhost:3000 for Next Steps.
     return NextResponse.next({
       request: {
         headers: request.headers,
