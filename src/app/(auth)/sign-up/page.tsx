@@ -1,3 +1,5 @@
+"use client";
+
 import { FormMessage, Message } from "@/components/form-message";
 import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
@@ -6,15 +8,38 @@ import Link from "next/link";
 import { SmtpMessage } from "../smtp-message";
 import { signUpAction } from "@/app/actions";
 import Navbar from "@/components/navbar";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
-export default async function Signup(props: {
-  searchParams: Promise<Message>;
+export default function Signup({
+  searchParams,
+}: {
+  searchParams: { error?: string; success?: string; message?: string };
 }) {
-  const searchParams = await props.searchParams;
-  if ("message" in searchParams) {
+  const router = useRouter();
+  const [message, setMessage] = useState<Message | null>(null);
+
+  useEffect(() => {
+    if (searchParams.error) {
+      setMessage({ error: searchParams.error });
+    } else if (searchParams.success) {
+      setMessage({ success: searchParams.success });
+    } else if (searchParams.message) {
+      setMessage({ message: searchParams.message });
+    }
+  }, [searchParams]);
+
+  const handleSubmit = async (formData: FormData) => {
+    const result = await signUpAction(formData);
+    if (result && "success" in result && result.success && result.redirectTo) {
+      router.push(result.redirectTo);
+    }
+  };
+
+  if (message && "message" in message) {
     return (
       <div className="flex h-screen w-full flex-1 items-center justify-center p-4 sm:max-w-md">
-        <FormMessage message={searchParams} />
+        <FormMessage message={message} />
       </div>
     );
   }
@@ -24,7 +49,7 @@ export default async function Signup(props: {
       <Navbar />
       <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-8">
         <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-sm">
-          <form className="flex flex-col space-y-6">
+          <form action={handleSubmit} className="flex flex-col space-y-6">
             <div className="space-y-2 text-center">
               <h1 className="text-3xl font-semibold tracking-tight">Sign up</h1>
               <p className="text-sm text-muted-foreground">
@@ -83,15 +108,11 @@ export default async function Signup(props: {
               </div>
             </div>
 
-            <SubmitButton
-              formAction={signUpAction}
-              pendingText="Signing up..."
-              className="w-full"
-            >
+            <SubmitButton pendingText="Signing up..." className="w-full">
               Sign up
             </SubmitButton>
 
-            <FormMessage message={searchParams} />
+            {message && <FormMessage message={message} />}
           </form>
         </div>
         <SmtpMessage />

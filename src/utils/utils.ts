@@ -12,5 +12,9 @@ export function encodedRedirect(
   path: string,
   message: string,
 ) {
-  return redirect(`${path}?${type}=${encodeURIComponent(message)}`);
+  // Only add query parameter if message is not empty
+  if (message) {
+    return redirect(`${path}?${type}=${encodeURIComponent(message)}`);
+  }
+  return redirect(path);
 }

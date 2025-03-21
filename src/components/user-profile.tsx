@@ -9,16 +9,18 @@ import {
 } from "./ui/dropdown-menu";
 import { createClient } from "../../supabase/client";
 import { useRouter } from "next/navigation";
+import { signOutAction } from "@/app/actions";
 
 export default function UserProfile() {
-  const supabase = createClient();
   const router = useRouter();
 
   const handleSignOut = async () => {
     try {
-      await supabase.auth.signOut();
-      router.refresh();
-      router.push("/sign-in");
+      const result = await signOutAction();
+      if (result && "success" in result && result.redirectTo) {
+        router.refresh();
+        router.push(result.redirectTo);
+      }
     } catch (error) {
       console.error("Error signing out:", error);
     }

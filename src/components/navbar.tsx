@@ -1,30 +1,58 @@
+"use client";
+
 import Link from "next/link";
-import { createClient } from "../../supabase/server";
 import { Button } from "./ui/button";
-import { User, UserCircle } from "lucide-react";
+import { UserCircle } from "lucide-react";
 import UserProfile from "./user-profile";
+import { useEffect, useState } from "react";
+import { createClient } from "../../supabase/client";
 
-export default async function Navbar() {
-  const supabase = await createClient();
+export default function Navbar() {
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase.auth.getUser();
+        if (!error && data.user) {
+          setUser(data.user);
+        }
+        setLoading(false);
+      } catch (err) {
+        console.error("Error fetching user:", err);
+        setLoading(false);
+      }
+    };
+
+    fetchUser();
+  }, []);
+
+  if (loading) {
+    return (
+      <nav className="w-full border-b border-gray-200 bg-white py-2">
+        <div className="container mx-auto px-4 flex justify-between items-center">
+          <Link href="/" className="text-xl font-bold">
+            VetClaims CoPilot
+          </Link>
+          <div className="flex gap-4 items-center"></div>
+        </div>
+      </nav>
+    );
+  }
 
   return (
     <nav className="w-full border-b border-gray-200 bg-white py-2">
       <div className="container mx-auto px-4 flex justify-between items-center">
-        <Link href="/" prefetch className="text-xl font-bold">
-          Logo
+        <Link href="/" className="text-xl font-bold">
+          VetClaims CoPilot
         </Link>
         <div className="flex gap-4 items-center">
           {user ? (
             <>
-              <Link
-                href="/dashboard"
-                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
-              >
-                <Button>Dashboard</Button>
+              <Link href="/dashboard">
+                <Button variant="outline">Dashboard</Button>
               </Link>
               <UserProfile />
             </>

@@ -1,3 +1,5 @@
+"use client";
+
 import { signInAction } from "@/app/actions";
 import { FormMessage, Message } from "@/components/form-message";
 import Navbar from "@/components/navbar";
@@ -5,15 +7,35 @@ import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 interface LoginProps {
-  searchParams: Promise<Message>;
+  searchParams: { error?: string; success?: string; message?: string };
 }
 
-export default async function SignInPage({ searchParams }: LoginProps) {
-  const message = await searchParams;
+export default function SignInPage({ searchParams }: LoginProps) {
+  const router = useRouter();
+  const [message, setMessage] = useState<Message | null>(null);
 
-  if ("message" in message) {
+  useEffect(() => {
+    if (searchParams.error) {
+      setMessage({ error: searchParams.error });
+    } else if (searchParams.success) {
+      setMessage({ success: searchParams.success });
+    } else if (searchParams.message) {
+      setMessage({ message: searchParams.message });
+    }
+  }, [searchParams]);
+
+  const handleSubmit = async (formData: FormData) => {
+    const result = await signInAction(formData);
+    if (result && "success" in result && result.success && result.redirectTo) {
+      router.push(result.redirectTo);
+    }
+  };
+
+  if (message && "message" in message) {
     return (
       <div className="flex h-screen w-full flex-1 items-center justify-center p-4 sm:max-w-md">
         <FormMessage message={message} />
@@ -26,7 +48,7 @@ export default async function SignInPage({ searchParams }: LoginProps) {
       <Navbar />
       <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-8">
         <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-sm">
-          <form className="flex flex-col space-y-6">
+          <form action={handleSubmit} className="flex flex-col space-y-6">
             <div className="space-y-2 text-center">
               <h1 className="text-3xl font-semibold tracking-tight">Sign in</h1>
               <p className="text-sm text-muted-foreground">
@@ -78,15 +100,11 @@ export default async function SignInPage({ searchParams }: LoginProps) {
               </div>
             </div>
 
-            <SubmitButton
-              className="w-full"
-              pendingText="Signing in..."
-              formAction={signInAction}
-            >
+            <SubmitButton className="w-full" pendingText="Signing in...">
               Sign in
             </SubmitButton>
 
-            <FormMessage message={message} />
+            {message && <FormMessage message={message} />}
           </form>
         </div>
       </div>
