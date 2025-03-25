@@ -63,7 +63,7 @@ export default function Dashboard() {
           console.log("Fetching user profile data...");
           const { data: profileData, error: profileError } = await supabase
             .from("users")
-            .select("*")
+            .select()
             .eq("id", data.user.id)
             .single();
 

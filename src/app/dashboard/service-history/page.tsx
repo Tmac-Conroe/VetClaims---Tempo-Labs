@@ -81,40 +81,9 @@ export default function ServiceHistory() {
           setServiceHistoryLoading(true);
           const supabase = createClient();
 
-          // Try to call the get_all_service_history RPC function first
+          // Directly query the service_history table instead of using RPC
           let data, error;
           try {
-            const result = await supabase.rpc("get_all_service_history");
-            data = result.data;
-            error = result.error;
-
-            if (error) {
-              console.error("Error fetching service history with RPC:", error);
-              // Fallback to direct table query if RPC fails
-              console.log("Falling back to direct table query...");
-              const tableResult = await supabase
-                .from("service_history")
-                .select("*")
-                .eq("user_id", user.id);
-
-              data = tableResult.data;
-              error = tableResult.error;
-
-              if (error) {
-                console.error(
-                  "Error fetching service history with direct query:",
-                  error,
-                );
-                setServiceHistoryLoading(false);
-                return;
-              }
-            }
-          } catch (rpcError) {
-            console.error("Exception when calling RPC:", rpcError);
-            // Fallback to direct table query
-            console.log(
-              "Falling back to direct table query after exception...",
-            );
             const tableResult = await supabase
               .from("service_history")
               .select("*")
@@ -131,6 +100,13 @@ export default function ServiceHistory() {
               setServiceHistoryLoading(false);
               return;
             }
+          } catch (queryError) {
+            console.error(
+              "Exception when querying service history:",
+              queryError,
+            );
+            setServiceHistoryLoading(false);
+            return;
           }
 
           console.log("Fetched service history:", data);

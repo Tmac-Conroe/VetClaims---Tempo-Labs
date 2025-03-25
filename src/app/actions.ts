@@ -47,13 +47,17 @@ export const signUpAction = async (formData: FormData) => {
 
     if (user) {
       try {
-        const { error: updateError } = await supabase.from("users").insert({
-          id: user.id,
-          name: fullName,
-          full_name: fullName,
-          email: email,
-          created_at: new Date().toISOString(),
-        });
+        const { error: updateError } = await supabase.from("users").upsert(
+          {
+            id: user.id,
+            name: fullName,
+            full_name: fullName,
+            email: email,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "id" },
+        );
 
         if (updateError) {
           console.error("Error updating user profile:", updateError);
