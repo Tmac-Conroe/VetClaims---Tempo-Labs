@@ -6,11 +6,27 @@ import { createClient } from "../../../../supabase/client";
 import { useEffect, useState } from "react";
 import AddServiceHistoryModal from "@/components/add-service-history-modal";
 
+type ServiceHistory = {
+  id: string;
+  user_id: string;
+  branch: string;
+  start_date: string;
+  end_date: string;
+  job: string;
+  deployments: string[] | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export default function ServiceHistory() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [serviceHistoryList, setServiceHistoryList] = useState<
+    ServiceHistory[]
+  >([]);
+  const [serviceHistoryLoading, setServiceHistoryLoading] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -57,6 +73,153 @@ export default function ServiceHistory() {
     fetchUser();
   }, [router]);
 
+  // Fetch service history data when user is loaded using getAllServiceHistory Supabase Function
+  useEffect(() => {
+    if (user) {
+      const fetchServiceHistory = async () => {
+        try {
+          setServiceHistoryLoading(true);
+          const supabase = createClient();
+
+          // Try to call the get_all_service_history RPC function first
+          let data, error;
+          try {
+            const result = await supabase.rpc("get_all_service_history");
+            data = result.data;
+            error = result.error;
+
+            if (error) {
+              console.error("Error fetching service history with RPC:", error);
+              // Fallback to direct table query if RPC fails
+              console.log("Falling back to direct table query...");
+              const tableResult = await supabase
+                .from("service_history")
+                .select("*")
+                .eq("user_id", user.id);
+
+              data = tableResult.data;
+              error = tableResult.error;
+
+              if (error) {
+                console.error(
+                  "Error fetching service history with direct query:",
+                  error,
+                );
+                setServiceHistoryLoading(false);
+                return;
+              }
+            }
+          } catch (rpcError) {
+            console.error("Exception when calling RPC:", rpcError);
+            // Fallback to direct table query
+            console.log(
+              "Falling back to direct table query after exception...",
+            );
+            const tableResult = await supabase
+              .from("service_history")
+              .select("*")
+              .eq("user_id", user.id);
+
+            data = tableResult.data;
+            error = tableResult.error;
+
+            if (error) {
+              console.error(
+                "Error fetching service history with direct query:",
+                error,
+              );
+              setServiceHistoryLoading(false);
+              return;
+            }
+          }
+
+          console.log("Fetched service history:", data);
+          setServiceHistoryList(data || []);
+          setServiceHistoryLoading(false);
+        } catch (err) {
+          console.error("Unexpected error fetching service history:", err);
+          setServiceHistoryLoading(false);
+        }
+      };
+
+      fetchServiceHistory();
+    }
+  }, [user]);
+
+  const handleSubmitServiceHistory = async (serviceHistory: {
+    branch: string;
+    startDate: string;
+    endDate: string;
+    job: string;
+    deployments: string;
+  }) => {
+    try {
+      const supabase = createClient();
+
+      // Parse deployments string into array
+      const deploymentsArray = serviceHistory.deployments
+        ? serviceHistory.deployments.split(",").map((d) => d.trim())
+        : [];
+
+      // Prepare the service history record
+      const newRecord = {
+        user_id: user.id,
+        branch: serviceHistory.branch,
+        start_date: serviceHistory.startDate,
+        end_date: serviceHistory.endDate,
+        job: serviceHistory.job,
+        deployments: deploymentsArray,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      console.log("Submitting service history record:", newRecord);
+
+      // Insert new service history record
+      const { data, error } = await supabase
+        .from("service_history")
+        .insert(newRecord)
+        .select();
+
+      if (error) {
+        console.error("Error adding service history:", error);
+        alert(`Failed to add service history: ${error.message}`);
+        return;
+      }
+
+      console.log("Service history added successfully:", data);
+
+      // Update the service history list with the new entry
+      if (data && data.length > 0) {
+        setServiceHistoryList((prev) => [...prev, data[0]]);
+      }
+
+      // Try to refresh the service history list to ensure it's up to date
+      try {
+        setServiceHistoryLoading(true);
+        const { data: refreshedData, error: refreshError } = await supabase
+          .from("service_history")
+          .select("*")
+          .eq("user_id", user.id);
+
+        if (!refreshError && refreshedData) {
+          setServiceHistoryList(refreshedData);
+        }
+        setServiceHistoryLoading(false);
+      } catch (refreshErr) {
+        console.error("Error refreshing service history:", refreshErr);
+        setServiceHistoryLoading(false);
+      }
+
+      setIsModalOpen(false);
+    } catch (err) {
+      console.error("Error submitting service history:", err);
+      alert(
+        "An unexpected error occurred while adding service history. Please try again.",
+      );
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center">
@@ -101,6 +264,13 @@ export default function ServiceHistory() {
     );
   }
 
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    return date.toLocaleDateString();
+  };
+
   return (
     <div className="min-h-screen w-full flex flex-col bg-gray-50">
       {/* Dashboard Navbar */}
@@ -131,9 +301,77 @@ export default function ServiceHistory() {
             </div>
 
             <div className="border border-gray-300 rounded-md p-4 mt-4 max-w-2xl mx-auto w-full">
-              <p className="text-gray-500 italic text-center">
-                Service History List will be displayed here
-              </p>
+              {serviceHistoryLoading ? (
+                <p className="text-gray-500 text-center">
+                  Loading service history...
+                </p>
+              ) : serviceHistoryList.length === 0 ? (
+                <p className="text-gray-500 italic text-center">
+                  No service history records found. Add your first service
+                  history record.
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  <h2 className="text-lg font-semibold text-center mb-2">
+                    Your Service History
+                  </h2>
+                  {serviceHistoryList.map((history) => (
+                    <div
+                      key={history.id}
+                      className="border border-gray-200 rounded-md p-4 bg-gray-50"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="font-bold text-gray-800">
+                            {history.branch.charAt(0).toUpperCase() +
+                              history.branch.slice(1)}
+                          </h3>
+                          <p className="text-sm text-gray-600">
+                            {formatDate(history.start_date)} -{" "}
+                            {formatDate(history.end_date)}
+                          </p>
+                          <p className="mt-1">
+                            <span className="font-medium">Job/MOS:</span>{" "}
+                            {history.job}
+                          </p>
+
+                          {history.deployments &&
+                            history.deployments.length > 0 && (
+                              <div className="mt-2">
+                                <p className="font-medium">Deployments:</p>
+                                <ul className="list-disc list-inside text-sm text-gray-700 ml-2">
+                                  {history.deployments.map(
+                                    (deployment, index) => (
+                                      <li key={index}>{deployment}</li>
+                                    ),
+                                  )}
+                                </ul>
+                              </div>
+                            )}
+                        </div>
+                        <div className="flex space-x-2">
+                          <button
+                            className="text-blue-600 hover:text-blue-800 text-sm"
+                            onClick={() =>
+                              console.log("Edit service history", history.id)
+                            }
+                          >
+                            Edit
+                          </button>
+                          <button
+                            className="text-red-600 hover:text-red-800 text-sm"
+                            onClick={() =>
+                              console.log("Delete service history", history.id)
+                            }
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -143,11 +381,7 @@ export default function ServiceHistory() {
       <AddServiceHistoryModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onSubmit={(serviceHistory) => {
-          console.log("Service history submitted:", serviceHistory);
-          // TODO: Save service history to database
-          setIsModalOpen(false);
-        }}
+        onSubmit={handleSubmitServiceHistory}
       />
     </div>
   );

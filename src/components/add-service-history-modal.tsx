@@ -25,6 +25,21 @@ const AddServiceHistoryModal: React.FC<AddServiceHistoryModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Basic validation
+    if (!branch || !startDate || !endDate || !job) {
+      alert("Please fill in all required fields");
+      return;
+    }
+
+    // Validate dates
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (end < start) {
+      alert("End date cannot be before start date");
+      return;
+    }
+
     onSubmit({
       branch,
       startDate,
@@ -32,6 +47,7 @@ const AddServiceHistoryModal: React.FC<AddServiceHistoryModalProps> = ({
       job,
       deployments,
     });
+
     // Reset form fields
     setBranch("");
     setStartDate("");
@@ -64,11 +80,11 @@ const AddServiceHistoryModal: React.FC<AddServiceHistoryModalProps> = ({
               required
             >
               <option value="">Select a branch</option>
-              <option value="Army">Army</option>
-              <option value="Navy">Navy</option>
-              <option value="Air Force">Air Force</option>
-              <option value="Marines">Marines</option>
-              <option value="Coast Guard">Coast Guard</option>
+              <option value="army">Army</option>
+              <option value="navy">Navy</option>
+              <option value="air force">Air Force</option>
+              <option value="marines">Marines</option>
+              <option value="coast guard">Coast Guard</option>
             </select>
           </div>
 
