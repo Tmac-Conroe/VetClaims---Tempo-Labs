@@ -29,6 +29,7 @@ export default function ConditionsPage() {
   // State for tracking selected and active conditions
   const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
   const [activeConditions, setActiveConditions] = useState<string[]>([]);
+  const [fetchingConditions, setFetchingConditions] = useState(false);
 
   // Handle checkbox changes
   const handleCheckboxChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -44,17 +45,127 @@ export default function ConditionsPage() {
     }
   };
 
-  // Handle confirm conditions button click
-  const handleConfirmConditions = () => {
-    // Update active conditions with selected conditions
-    setActiveConditions([...selectedConditions]);
+  // Function to fetch active conditions from the database
+  const fetchActiveConditions = async () => {
+    if (!user) return;
 
-    // Optionally clear selection after confirming
-    // setSelectedConditions([]);
+    try {
+      setFetchingConditions(true);
+      const supabase = createClient();
 
-    console.log("Confirmed Conditions:", selectedConditions);
-    // TODO: Add logic here to persist confirmed conditions to Supabase in future
+      const { data, error } = await supabase
+        .from("conditions")
+        .select("*")
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.error("Error fetching conditions:", error);
+        return;
+      }
+
+      if (data) {
+        // Extract condition names from the data and update state
+        setActiveConditions(data.map((condition) => condition.condition_name));
+        console.log("Active conditions fetched:", data);
+      }
+    } catch (err) {
+      console.error("Unexpected error fetching conditions:", err);
+    } finally {
+      setFetchingConditions(false);
+    }
   };
+
+  // Handle confirm conditions button click
+  const handleConfirmConditions = async () => {
+    if (!user || selectedConditions.length === 0) {
+      console.log("No user or no conditions selected.");
+      return; // Exit if no user or nothing selected
+    }
+
+    console.log("Attempting to confirm conditions:", selectedConditions);
+    const supabase = createClient(); // Assuming createClient() is already imported
+    let errorOccurred = false; // Flag to track if any non-duplicate error happened
+
+    // Use Promise.all to handle multiple inserts concurrently
+    await Promise.all(
+      selectedConditions.map(async (conditionName) => {
+        try {
+          // Attempt to insert the condition
+          const { data, error } = await supabase
+            .from("conditions")
+            .insert({
+              user_id: user.id,
+              condition_name: conditionName,
+              condition_status: "confirmed", // Set status to confirmed
+            })
+            .select() // Select to get the inserted data or handle errors
+            .single(); // Use single() if you expect only one row or an error
+
+          // Type guard for SupabaseError
+          if (error && typeof error === "object" && "code" in error) {
+            // Check if it's a unique constraint violation (PostgreSQL error code 23505)
+            if (error.code === "23505") {
+              console.log(
+                `Condition "${conditionName}" already exists for user.`,
+              );
+              // Ignore duplicate error - this is expected if already added
+            } else {
+              // It's a different, unexpected error
+              console.error(
+                `Error inserting condition "${conditionName}":`,
+                error,
+              );
+              errorOccurred = true; // Mark that an error occurred
+            }
+          } else if (error) {
+            // Handle potential errors that don't have a 'code' property
+            console.error(
+              `Error inserting condition "${conditionName}" (no code):`,
+              error,
+            );
+            errorOccurred = true;
+          } else {
+            console.log(
+              `Condition "${conditionName}" added successfully:`,
+              data,
+            );
+            // Successfully inserted (or already existed and ignored)
+          }
+        } catch (catchError) {
+          // Catch any other unexpected errors during the insert process
+          console.error(
+            `Unexpected error inserting condition "${conditionName}":`,
+            catchError,
+          );
+          errorOccurred = true; // Mark that an error occurred
+        }
+      }),
+    );
+
+    // --- Post-Insertion Actions ---
+
+    // 1. Clear the selection checkboxes
+    setSelectedConditions([]);
+
+    // 2. Refresh the activeConditions list from the database
+    await fetchActiveConditions();
+
+    // 3. Notify user if any unexpected errors occurred during insertion
+    if (errorOccurred) {
+      alert(
+        "Some conditions could not be added due to an error. Please check the console for details.",
+      );
+    }
+
+    console.log("Confirm Conditions process finished.");
+  };
+
+  // Fetch active conditions when user is available
+  useEffect(() => {
+    if (user) {
+      fetchActiveConditions();
+    }
+  }, [user]);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -184,7 +295,9 @@ export default function ConditionsPage() {
           {/* Active Conditions List */}
           <div className="border border-gray-300 rounded-md p-4 mt-4 w-full max-w-lg mx-auto bg-white">
             <h2 className="font-bold mb-3 text-lg">Active Conditions</h2>
-            {activeConditions.length === 0 ? (
+            {fetchingConditions ? (
+              <p className="text-gray-500 text-center">Loading conditions...</p>
+            ) : activeConditions.length === 0 ? (
               <p className="text-gray-500 italic">
                 Your active conditions will be listed here after you confirm
                 them.
