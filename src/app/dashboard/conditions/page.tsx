@@ -11,6 +11,51 @@ export default function ConditionsPage() {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
+  // Define common conditions array
+  const commonConditions = [
+    "Back Pain (Lumbosacral Strain)",
+    "Tinnitus (Ringing in Ears)",
+    "PTSD (Post-Traumatic Stress Disorder)",
+    "Knee Condition (e.g., Patellofemoral Syndrome)",
+    "Hearing Loss",
+    "Migraines",
+    "Shoulder Condition (e.g., Rotator Cuff)",
+    "Ankle Condition (e.g., Sprain/Strain)",
+    "Sleep Apnea",
+    "Depression",
+    "Anxiety Disorder",
+  ];
+
+  // State for tracking selected and active conditions
+  const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
+  const [activeConditions, setActiveConditions] = useState<string[]>([]);
+
+  // Handle checkbox changes
+  const handleCheckboxChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const { value, checked } = event.target;
+    if (checked) {
+      // Add condition to selected list if checked
+      setSelectedConditions((prev) => [...prev, value]);
+    } else {
+      // Remove condition from selected list if unchecked
+      setSelectedConditions((prev) =>
+        prev.filter((condition) => condition !== value),
+      );
+    }
+  };
+
+  // Handle confirm conditions button click
+  const handleConfirmConditions = () => {
+    // Update active conditions with selected conditions
+    setActiveConditions([...selectedConditions]);
+
+    // Optionally clear selection after confirming
+    // setSelectedConditions([]);
+
+    console.log("Confirmed Conditions:", selectedConditions);
+    // TODO: Add logic here to persist confirmed conditions to Supabase in future
+  };
+
   useEffect(() => {
     const fetchUser = async () => {
       try {
@@ -112,29 +157,56 @@ export default function ConditionsPage() {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 p-4 md:p-6 flex flex-col items-center">
+      <main className="flex-1 p-4 md:p-6 flex flex-col items-center overflow-y-auto">
         <div className="container mx-auto max-w-5xl">
-          {/* Common Condition List Placeholder */}
-          <div className="border border-gray-300 rounded-md p-4 mb-4 w-full max-w-lg mx-auto">
-            <h2 className="font-bold mb-3">Common Condition List</h2>
-            <p className="text-gray-500 italic">
-              Common conditions will be listed here
-            </p>
+          {/* Common Condition List with Checkboxes */}
+          <div className="border border-gray-300 rounded-md p-4 mb-4 w-full max-w-lg mx-auto bg-white">
+            <h2 className="font-bold mb-3 text-lg">Common Condition List</h2>
+            <div className="space-y-2">
+              {commonConditions.map((condition) => (
+                <div key={condition} className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id={condition}
+                    value={condition}
+                    checked={selectedConditions.includes(condition)}
+                    onChange={handleCheckboxChange}
+                    className="mr-2 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <label htmlFor={condition} className="text-gray-700">
+                    {condition}
+                  </label>
+                </div>
+              ))}
+            </div>
           </div>
 
-          {/* Active Conditions List Placeholder */}
-          <div className="border border-gray-300 rounded-md p-4 mt-4 w-full max-w-lg mx-auto">
-            <h2 className="font-bold mb-3">Active Conditions</h2>
-            <p className="text-gray-500 italic">
-              Your active conditions will be listed here after you confirm them.
-            </p>
+          {/* Active Conditions List */}
+          <div className="border border-gray-300 rounded-md p-4 mt-4 w-full max-w-lg mx-auto bg-white">
+            <h2 className="font-bold mb-3 text-lg">Active Conditions</h2>
+            {activeConditions.length === 0 ? (
+              <p className="text-gray-500 italic">
+                Your active conditions will be listed here after you confirm
+                them.
+              </p>
+            ) : (
+              <ul className="list-disc list-inside space-y-1">
+                {activeConditions.map((condition) => (
+                  <li key={condition} className="text-gray-700">
+                    {condition}
+                    {/* TODO: Add Edit/Delete buttons or status indicators here in future */}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           {/* Confirm Conditions Button */}
           <div className="flex justify-center mt-4">
             <button
               className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded w-full md:w-64 transition-colors"
-              onClick={() => console.log("Confirm Conditions clicked")}
+              onClick={handleConfirmConditions}
+              disabled={selectedConditions.length === 0}
             >
               Confirm Conditions
             </button>
