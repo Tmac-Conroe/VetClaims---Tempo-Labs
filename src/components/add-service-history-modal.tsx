@@ -1,27 +1,62 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
-interface AddServiceHistoryModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSubmit: (serviceHistory: {
-    branch: string;
-    startDate: string;
-    endDate: string;
-    job: string;
-    deployments: string;
-  }) => void;
+interface ServiceHistoryFormData {
+  branch: string;
+  startDate: string;
+  endDate: string;
+  job: string;
+  deployments: string;
 }
 
-const AddServiceHistoryModal: React.FC<AddServiceHistoryModalProps> = ({
+interface ServiceHistoryModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (serviceHistory: ServiceHistoryFormData) => void;
+  onUpdate?: (id: string, serviceHistory: ServiceHistoryFormData) => void;
+  initialData?: {
+    id: string;
+    branch: string;
+    start_date: string;
+    end_date: string;
+    job: string;
+    deployments: string[] | null;
+  } | null;
+  isEditing?: boolean;
+}
+
+const ServiceHistoryModal: React.FC<ServiceHistoryModalProps> = ({
   isOpen,
   onClose,
   onSubmit,
+  onUpdate,
+  initialData = null,
+  isEditing = false,
 }) => {
   const [branch, setBranch] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [job, setJob] = useState("");
   const [deployments, setDeployments] = useState("");
+
+  // Set initial form values when editing an existing entry
+  useEffect(() => {
+    if (initialData && isEditing) {
+      setBranch(initialData.branch || "");
+      setStartDate(initialData.start_date || "");
+      setEndDate(initialData.end_date || "");
+      setJob(initialData.job || "");
+      setDeployments(
+        initialData.deployments ? initialData.deployments.join(", ") : "",
+      );
+    } else {
+      // Reset form when not editing or when modal is closed and reopened for adding
+      setBranch("");
+      setStartDate("");
+      setEndDate("");
+      setJob("");
+      setDeployments("");
+    }
+  }, [initialData, isEditing, isOpen]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,20 +75,24 @@ const AddServiceHistoryModal: React.FC<AddServiceHistoryModalProps> = ({
       return;
     }
 
-    onSubmit({
+    const formData: ServiceHistoryFormData = {
       branch,
       startDate,
       endDate,
       job,
       deployments,
-    });
+    };
 
-    // Reset form fields
-    setBranch("");
-    setStartDate("");
-    setEndDate("");
-    setJob("");
-    setDeployments("");
+    if (isEditing && initialData && onUpdate) {
+      // Update existing service history
+      onUpdate(initialData.id, formData);
+    } else {
+      // Add new service history
+      onSubmit(formData);
+    }
+
+    // Reset form fields and close modal
+    // (Form will be reset by useEffect when reopened)
     onClose();
   };
 
@@ -62,7 +101,9 @@ const AddServiceHistoryModal: React.FC<AddServiceHistoryModalProps> = ({
       className={`fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex items-center justify-center z-50 ${!isOpen ? "hidden" : ""}`}
     >
       <div className="bg-white rounded-md p-6 w-full max-w-md">
-        <h2 className="text-xl font-bold mb-4">Add Service History</h2>
+        <h2 className="text-xl font-bold mb-4">
+          {isEditing ? "Edit" : "Add"} Service History
+        </h2>
 
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
@@ -164,7 +205,7 @@ const AddServiceHistoryModal: React.FC<AddServiceHistoryModalProps> = ({
               type="submit"
               className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded ml-2"
             >
-              Submit
+              {isEditing ? "Update" : "Submit"}
             </button>
           </div>
         </form>
@@ -173,4 +214,4 @@ const AddServiceHistoryModal: React.FC<AddServiceHistoryModalProps> = ({
   );
 };
 
-export default AddServiceHistoryModal;
+export default ServiceHistoryModal;

@@ -4,7 +4,7 @@ import DashboardNavbar from "@/components/dashboard-navbar";
 import { useRouter } from "next/navigation";
 import { createClient } from "../../../../supabase/client";
 import { useEffect, useState } from "react";
-import AddServiceHistoryModal from "@/components/add-service-history-modal";
+import ServiceHistoryModal from "@/components/add-service-history-modal";
 
 type ServiceHistory = {
   id: string;
@@ -23,10 +23,14 @@ export default function ServiceHistory() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingServiceHistory, setEditingServiceHistory] =
+    useState<ServiceHistory | null>(null);
   const [serviceHistoryList, setServiceHistoryList] = useState<
     ServiceHistory[]
   >([]);
   const [serviceHistoryLoading, setServiceHistoryLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -145,6 +149,140 @@ export default function ServiceHistory() {
       fetchServiceHistory();
     }
   }, [user]);
+
+  const handleEditClick = (history: ServiceHistory) => {
+    setEditingServiceHistory(history);
+    setIsEditModalOpen(true);
+  };
+
+  const handleDeleteServiceHistory = async (id: string) => {
+    // Show confirmation dialog
+    if (
+      !window.confirm(
+        "Are you sure you want to delete this service history entry?",
+      )
+    ) {
+      return; // User canceled the deletion
+    }
+
+    try {
+      setDeletingId(id); // Set the ID being deleted for UI feedback
+      const supabase = createClient();
+
+      // Delete the service history entry
+      const { error } = await supabase
+        .from("service_history")
+        .delete()
+        .eq("id", id)
+        .eq("user_id", user.id); // Extra security check
+
+      if (error) {
+        console.error("Error deleting service history:", error);
+        alert(`Failed to delete service history: ${error.message}`);
+        return;
+      }
+
+      // Update the UI by removing the deleted entry
+      setServiceHistoryList((prevList) =>
+        prevList.filter((item) => item.id !== id),
+      );
+
+      // Show success message
+      alert("Service history deleted successfully");
+    } catch (err) {
+      console.error("Error deleting service history:", err);
+      alert(
+        "An unexpected error occurred while deleting service history. Please try again.",
+      );
+    } finally {
+      setDeletingId(null); // Reset deleting state
+    }
+  };
+
+  const handleUpdateServiceHistory = async (
+    id: string,
+    serviceHistory: {
+      branch: string;
+      startDate: string;
+      endDate: string;
+      job: string;
+      deployments: string;
+    },
+  ) => {
+    try {
+      const supabase = createClient();
+
+      // Parse deployments string into array
+      const deploymentsArray = serviceHistory.deployments
+        ? serviceHistory.deployments.split(",").map((d) => d.trim())
+        : [];
+
+      // Prepare the update record
+      const updateRecord = {
+        branch: serviceHistory.branch,
+        start_date: serviceHistory.startDate,
+        end_date: serviceHistory.endDate,
+        job: serviceHistory.job,
+        deployments: deploymentsArray,
+        updated_at: new Date().toISOString(),
+      };
+
+      console.log("Updating service history record:", id, updateRecord);
+
+      // Update service history record
+      const { data, error } = await supabase
+        .from("service_history")
+        .update(updateRecord)
+        .eq("id", id)
+        .eq("user_id", user.id) // Extra security check
+        .select();
+
+      if (error) {
+        console.error("Error updating service history:", error);
+        alert(`Failed to update service history: ${error.message}`);
+        return;
+      }
+
+      console.log("Service history updated successfully:", data);
+
+      // Update the service history list with the updated entry
+      if (data && data.length > 0) {
+        setServiceHistoryList((prev) =>
+          prev.map((item) => (item.id === id ? data[0] : item)),
+        );
+      }
+
+      // Refresh the service history list to ensure it's up to date
+      refreshServiceHistory();
+
+      setIsEditModalOpen(false);
+      setEditingServiceHistory(null);
+    } catch (err) {
+      console.error("Error updating service history:", err);
+      alert(
+        "An unexpected error occurred while updating service history. Please try again.",
+      );
+    }
+  };
+
+  const refreshServiceHistory = async () => {
+    try {
+      setServiceHistoryLoading(true);
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("service_history")
+        .select("*")
+        .eq("user_id", user.id);
+
+      if (!error && data) {
+        setServiceHistoryList(data);
+      }
+      setServiceHistoryLoading(false);
+    } catch (err) {
+      console.error("Error refreshing service history:", err);
+      setServiceHistoryLoading(false);
+    }
+  };
 
   const handleSubmitServiceHistory = async (serviceHistory: {
     branch: string;
@@ -352,19 +490,20 @@ export default function ServiceHistory() {
                         <div className="flex space-x-2">
                           <button
                             className="text-blue-600 hover:text-blue-800 text-sm"
-                            onClick={() =>
-                              console.log("Edit service history", history.id)
-                            }
+                            onClick={() => handleEditClick(history)}
                           >
                             Edit
                           </button>
                           <button
                             className="text-red-600 hover:text-red-800 text-sm"
                             onClick={() =>
-                              console.log("Delete service history", history.id)
+                              handleDeleteServiceHistory(history.id)
                             }
+                            disabled={deletingId === history.id}
                           >
-                            Delete
+                            {deletingId === history.id
+                              ? "Deleting..."
+                              : "Delete"}
                           </button>
                         </div>
                       </div>
@@ -378,10 +517,23 @@ export default function ServiceHistory() {
       </main>
 
       {/* Add Service History Modal */}
-      <AddServiceHistoryModal
+      <ServiceHistoryModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleSubmitServiceHistory}
+      />
+
+      {/* Edit Service History Modal */}
+      <ServiceHistoryModal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setEditingServiceHistory(null);
+        }}
+        onSubmit={handleSubmitServiceHistory}
+        onUpdate={handleUpdateServiceHistory}
+        initialData={editingServiceHistory}
+        isEditing={true}
       />
     </div>
   );
