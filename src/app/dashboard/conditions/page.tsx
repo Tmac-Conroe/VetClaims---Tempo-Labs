@@ -30,6 +30,9 @@ export default function ConditionsPage() {
   const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
   const [activeConditions, setActiveConditions] = useState<string[]>([]);
   const [fetchingConditions, setFetchingConditions] = useState(false);
+  const [deletingCondition, setDeletingCondition] = useState<string | null>(
+    null,
+  );
 
   // Handle checkbox changes
   const handleCheckboxChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -160,6 +163,48 @@ export default function ConditionsPage() {
     console.log("Confirm Conditions process finished.");
   };
 
+  // Handle removing an active condition
+  const handleRemoveActiveCondition = async (conditionName: string) => {
+    // Show confirmation dialog
+    if (
+      !window.confirm(
+        `Are you sure you want to remove "${conditionName}" from your conditions?`,
+      )
+    ) {
+      return; // User canceled the deletion
+    }
+
+    try {
+      setDeletingCondition(conditionName); // Set the condition being deleted for UI feedback
+      const supabase = createClient();
+
+      // Delete the condition entry
+      const { error } = await supabase
+        .from("conditions")
+        .delete()
+        .eq("condition_name", conditionName)
+        .eq("user_id", user.id); // Extra security check
+
+      if (error) {
+        console.error("Error deleting condition:", error);
+        alert(`Failed to delete condition: ${error.message}`);
+        return;
+      }
+
+      // Refresh the active conditions list
+      await fetchActiveConditions();
+
+      console.log(`Condition "${conditionName}" removed successfully`);
+    } catch (err) {
+      console.error("Error removing condition:", err);
+      alert(
+        "An unexpected error occurred while removing the condition. Please try again.",
+      );
+    } finally {
+      setDeletingCondition(null); // Reset deleting state
+    }
+  };
+
   // Fetch active conditions when user is available
   useEffect(() => {
     if (user) {
@@ -271,11 +316,16 @@ export default function ConditionsPage() {
       <main className="flex-1 p-4 md:p-6 flex flex-col items-center overflow-y-auto">
         <div className="container mx-auto max-w-5xl">
           {/* Common Condition List with Checkboxes */}
-          <div className="border border-gray-300 rounded-md p-4 mb-4 w-full max-w-lg mx-auto bg-white">
-            <h2 className="font-bold mb-3 text-lg">Common Condition List</h2>
-            <div className="space-y-2">
+          <div className="border border-gray-300 rounded-md p-6 mb-4 w-full max-w-lg mx-auto bg-white shadow-md">
+            <h2 className="text-xl font-semibold text-gray-800 mb-5">
+              Common Condition List
+            </h2>
+            <div className="space-y-1 mb-4 border-t border-gray-200 pt-4">
               {commonConditions.map((condition) => (
-                <div key={condition} className="flex items-center">
+                <div
+                  key={condition}
+                  className="flex items-center py-1 rounded px-2 -mx-2 hover:bg-gray-50"
+                >
                   <input
                     type="checkbox"
                     id={condition}
@@ -290,6 +340,23 @@ export default function ConditionsPage() {
                 </div>
               ))}
             </div>
+
+            {/* Instructional Text */}
+            <p className="text-sm text-gray-600 text-center mt-4 mb-4">
+              Select all applicable conditions from the list above, then click
+              'Confirm Conditions' to add them to your Active Conditions.
+            </p>
+
+            {/* Confirm Conditions Button */}
+            <div className="flex justify-center border-t border-gray-200 pt-4 mt-4">
+              <button
+                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded w-full md:w-64 transition-colors"
+                onClick={handleConfirmConditions}
+                disabled={selectedConditions.length === 0}
+              >
+                Confirm Conditions
+              </button>
+            </div>
           </div>
 
           {/* Active Conditions List */}
@@ -303,26 +370,26 @@ export default function ConditionsPage() {
                 them.
               </p>
             ) : (
-              <ul className="list-disc list-inside space-y-1">
+              <ul className="space-y-2">
                 {activeConditions.map((condition) => (
-                  <li key={condition} className="text-gray-700">
-                    {condition}
-                    {/* TODO: Add Edit/Delete buttons or status indicators here in future */}
+                  <li
+                    key={condition}
+                    className="flex justify-between items-center py-1 px-2 rounded hover:bg-gray-50"
+                  >
+                    <span className="text-gray-700">{condition}</span>
+                    <button
+                      onClick={() => handleRemoveActiveCondition(condition)}
+                      disabled={deletingCondition === condition}
+                      className="text-red-500 hover:text-red-700 text-sm font-medium transition-colors"
+                    >
+                      {deletingCondition === condition
+                        ? "Removing..."
+                        : "Remove"}
+                    </button>
                   </li>
                 ))}
               </ul>
             )}
-          </div>
-
-          {/* Confirm Conditions Button */}
-          <div className="flex justify-center mt-4">
-            <button
-              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded w-full md:w-64 transition-colors"
-              onClick={handleConfirmConditions}
-              disabled={selectedConditions.length === 0}
-            >
-              Confirm Conditions
-            </button>
           </div>
         </div>
       </main>
