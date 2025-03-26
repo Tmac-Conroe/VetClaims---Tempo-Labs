@@ -4,6 +4,7 @@ import DashboardNavbar from "@/components/dashboard-navbar";
 import { useRouter } from "next/navigation";
 import { createClient } from "../../../../supabase/client";
 import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 
 export default function ConditionsPage() {
   const [user, setUser] = useState<any>(null);
@@ -155,9 +156,9 @@ export default function ConditionsPage() {
 
     // 3. Notify user if any unexpected errors occurred during insertion
     if (errorOccurred) {
-      alert(
-        "Some conditions could not be added due to an error. Please check the console for details.",
-      );
+      toast.error("Some conditions could not be added due to an error.");
+    } else {
+      toast.success("Selected conditions confirmed successfully!");
     }
 
     console.log("Confirm Conditions process finished.");
@@ -187,7 +188,7 @@ export default function ConditionsPage() {
 
       if (error) {
         console.error("Error deleting condition:", error);
-        alert(`Failed to delete condition: ${error.message}`);
+        toast.error(`Failed to delete condition: ${error.message}`);
         return;
       }
 
@@ -195,9 +196,10 @@ export default function ConditionsPage() {
       await fetchActiveConditions();
 
       console.log(`Condition "${conditionName}" removed successfully`);
+      toast.success(`Condition "${conditionName}" removed successfully`);
     } catch (err) {
       console.error("Error removing condition:", err);
-      alert(
+      toast.error(
         "An unexpected error occurred while removing the condition. Please try again.",
       );
     } finally {
@@ -324,17 +326,32 @@ export default function ConditionsPage() {
               {commonConditions.map((condition) => (
                 <div
                   key={condition}
-                  className="flex items-center py-1 rounded px-2 -mx-2 hover:bg-gray-50"
+                  className={`flex items-center py-1 rounded px-2 -mx-2 ${
+                    activeConditions.includes(condition)
+                      ? "opacity-70 cursor-not-allowed"
+                      : "hover:bg-gray-50"
+                  }`}
                 >
                   <input
                     type="checkbox"
                     id={condition}
                     value={condition}
-                    checked={selectedConditions.includes(condition)}
+                    checked={
+                      selectedConditions.includes(condition) ||
+                      activeConditions.includes(condition)
+                    }
                     onChange={handleCheckboxChange}
-                    className="mr-2 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    disabled={activeConditions.includes(condition)}
+                    className="mr-2 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-50"
                   />
-                  <label htmlFor={condition} className="text-gray-700">
+                  <label
+                    htmlFor={condition}
+                    className={`text-gray-700 ${
+                      activeConditions.includes(condition)
+                        ? "cursor-not-allowed"
+                        : ""
+                    }`}
+                  >
                     {condition}
                   </label>
                 </div>

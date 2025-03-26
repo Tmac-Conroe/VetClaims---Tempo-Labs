@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import toast from "react-hot-toast";
 
 interface ServiceHistoryFormData {
   branch: string;
@@ -63,7 +64,7 @@ const ServiceHistoryModal: React.FC<ServiceHistoryModalProps> = ({
 
     // Basic validation
     if (!branch || !startDate || !endDate || !job) {
-      alert("Please fill in all required fields");
+      toast.error("Please fill in all required fields");
       return;
     }
 
@@ -71,7 +72,7 @@ const ServiceHistoryModal: React.FC<ServiceHistoryModalProps> = ({
     const start = new Date(startDate);
     const end = new Date(endDate);
     if (end < start) {
-      alert("End date cannot be before start date");
+      toast.error("End date cannot be before start date");
       return;
     }
 

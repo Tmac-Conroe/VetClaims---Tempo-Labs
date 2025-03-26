@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "../../../../supabase/client";
 import { useEffect, useState } from "react";
 import ServiceHistoryModal from "@/components/add-service-history-modal";
+import toast from "react-hot-toast";
 
 type ServiceHistory = {
   id: string;
@@ -178,7 +179,7 @@ export default function ServiceHistory() {
 
       if (error) {
         console.error("Error deleting service history:", error);
-        alert(`Failed to delete service history: ${error.message}`);
+        toast.error(`Failed to delete service history: ${error.message}`);
         return;
       }
 
@@ -188,10 +189,10 @@ export default function ServiceHistory() {
       );
 
       // Show success message
-      alert("Service history deleted successfully");
+      toast.success("Service history deleted successfully");
     } catch (err) {
       console.error("Error deleting service history:", err);
-      alert(
+      toast.error(
         "An unexpected error occurred while deleting service history. Please try again.",
       );
     } finally {
@@ -239,11 +240,12 @@ export default function ServiceHistory() {
 
       if (error) {
         console.error("Error updating service history:", error);
-        alert(`Failed to update service history: ${error.message}`);
+        toast.error(`Failed to update service history: ${error.message}`);
         return;
       }
 
       console.log("Service history updated successfully:", data);
+      toast.success("Service history updated successfully");
 
       // Update the service history list with the updated entry
       if (data && data.length > 0) {
@@ -259,7 +261,7 @@ export default function ServiceHistory() {
       setEditingServiceHistory(null);
     } catch (err) {
       console.error("Error updating service history:", err);
-      alert(
+      toast.error(
         "An unexpected error occurred while updating service history. Please try again.",
       );
     }
@@ -321,11 +323,12 @@ export default function ServiceHistory() {
 
       if (error) {
         console.error("Error adding service history:", error);
-        alert(`Failed to add service history: ${error.message}`);
+        toast.error(`Failed to add service history: ${error.message}`);
         return;
       }
 
       console.log("Service history added successfully:", data);
+      toast.success("Service history added successfully");
 
       // Update the service history list with the new entry
       if (data && data.length > 0) {
@@ -352,7 +355,7 @@ export default function ServiceHistory() {
       setIsModalOpen(false);
     } catch (err) {
       console.error("Error submitting service history:", err);
-      alert(
+      toast.error(
         "An unexpected error occurred while adding service history. Please try again.",
       );
     }
