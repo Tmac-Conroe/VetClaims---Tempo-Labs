@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "../../../../supabase/client";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
+import ConfirmationModal from "@/components/confirmation-modal";
 
 export default function ConditionsPage() {
   const [user, setUser] = useState<any>(null);
@@ -32,6 +33,12 @@ export default function ConditionsPage() {
   const [activeConditions, setActiveConditions] = useState<string[]>([]);
   const [fetchingConditions, setFetchingConditions] = useState(false);
   const [deletingCondition, setDeletingCondition] = useState<string | null>(
+    null,
+  );
+
+  // State variables for confirmation modal
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [conditionToDelete, setConditionToDelete] = useState<string | null>(
     null,
   );
 
@@ -164,27 +171,26 @@ export default function ConditionsPage() {
     console.log("Confirm Conditions process finished.");
   };
 
-  // Handle removing an active condition
-  const handleRemoveActiveCondition = async (conditionName: string) => {
-    // Show confirmation dialog
-    if (
-      !window.confirm(
-        `Are you sure you want to remove "${conditionName}" from your conditions?`,
-      )
-    ) {
-      return; // User canceled the deletion
-    }
+  // Handle opening the confirmation modal for removing a condition
+  const handleRemoveActiveCondition = (conditionName: string) => {
+    setConditionToDelete(conditionName);
+    setIsConfirmModalOpen(true);
+  };
+
+  // Handle confirming the deletion of a condition
+  const confirmDeletion = async () => {
+    if (!conditionToDelete || !user) return; // Check if conditionToDelete is set and user exists
 
     try {
-      setDeletingCondition(conditionName); // Set the condition being deleted for UI feedback
-      const supabase = createClient();
+      setDeletingCondition(conditionToDelete); // Use the state variable
+      setIsConfirmModalOpen(false); // Close modal immediately when confirm is clicked
 
-      // Delete the condition entry
+      const supabase = createClient();
       const { error } = await supabase
         .from("conditions")
         .delete()
-        .eq("condition_name", conditionName)
-        .eq("user_id", user.id); // Extra security check
+        .eq("condition_name", conditionToDelete) // Use state variable
+        .eq("user_id", user.id);
 
       if (error) {
         console.error("Error deleting condition:", error);
@@ -195,8 +201,8 @@ export default function ConditionsPage() {
       // Refresh the active conditions list
       await fetchActiveConditions();
 
-      console.log(`Condition "${conditionName}" removed successfully`);
-      toast.success(`Condition "${conditionName}" removed successfully`);
+      console.log(`Condition "${conditionToDelete}" removed successfully`);
+      toast.success(`Condition "${conditionToDelete}" removed successfully`);
     } catch (err) {
       console.error("Error removing condition:", err);
       toast.error(
@@ -204,6 +210,7 @@ export default function ConditionsPage() {
       );
     } finally {
       setDeletingCondition(null); // Reset deleting state
+      setConditionToDelete(null); // Reset condition to delete state
     }
   };
 
@@ -410,6 +417,19 @@ export default function ConditionsPage() {
           </div>
         </div>
       </main>
+
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={isConfirmModalOpen}
+        onClose={() => {
+          setIsConfirmModalOpen(false);
+          setConditionToDelete(null); // Also reset conditionToDelete on cancel
+        }}
+        onConfirm={confirmDeletion} // Pass the deletion logic function
+        title="Confirm Deletion"
+        // Dynamically set the message based on the condition to delete
+        message={`Are you sure you want to remove "${conditionToDelete || ""}" from your active conditions?`}
+      />
     </div>
   );
 }

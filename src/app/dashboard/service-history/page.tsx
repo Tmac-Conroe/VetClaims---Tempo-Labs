@@ -432,16 +432,8 @@ export default function ServiceHistory() {
               Record your military service history to help build your VA
               disability claim. Click 'Add Service History' to get started.
             </p>
-            <div className="flex justify-center">
-              <button
-                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded w-full md:w-64 transition-colors"
-                onClick={() => setIsModalOpen(true)}
-              >
-                Add Service History
-              </button>
-            </div>
 
-            <div className="border border-gray-300 rounded-md p-4 mt-4 max-w-2xl mx-auto w-full">
+            <div className="border border-gray-300 rounded-md p-4 max-w-2xl mx-auto w-full">
               {serviceHistoryLoading ? (
                 <p className="text-gray-500 text-center">
                   Loading service history...
@@ -514,6 +506,17 @@ export default function ServiceHistory() {
                   ))}
                 </div>
               )}
+            </div>
+
+            <div className="flex justify-center mt-6">
+              <button
+                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded w-full md:w-64 transition-colors"
+                onClick={() => setIsModalOpen(true)}
+              >
+                {serviceHistoryList.length === 0
+                  ? "Add Service History"
+                  : "Add Additional Service History"}
+              </button>
             </div>
           </div>
         </div>
