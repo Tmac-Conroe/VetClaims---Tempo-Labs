@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "../../../../supabase/client";
 import { useEffect, useState } from "react";
 import ServiceHistoryModal from "@/components/add-service-history-modal";
+import ConfirmationModal from "@/components/confirmation-modal";
 import toast from "react-hot-toast";
 
 type ServiceHistory = {
@@ -32,6 +33,10 @@ export default function ServiceHistory() {
   >([]);
   const [serviceHistoryLoading, setServiceHistoryLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [serviceHistoryToDeleteId, setServiceHistoryToDeleteId] = useState<
+    string | null
+  >(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -157,24 +162,24 @@ export default function ServiceHistory() {
   };
 
   const handleDeleteServiceHistory = async (id: string) => {
-    // Show confirmation dialog
-    if (
-      !window.confirm(
-        "Are you sure you want to delete this service history entry?",
-      )
-    ) {
-      return; // User canceled the deletion
-    }
+    setServiceHistoryToDeleteId(id);
+    setIsConfirmModalOpen(true);
+  };
+
+  const confirmDeletion = async () => {
+    if (!serviceHistoryToDeleteId || !user) return; // Ensure ID and user are available
 
     try {
-      setDeletingId(id); // Set the ID being deleted for UI feedback
+      setDeletingId(serviceHistoryToDeleteId); // Set the ID being deleted for UI feedback
+      setIsConfirmModalOpen(false); // Close confirmation modal
+
       const supabase = createClient();
 
       // Delete the service history entry
       const { error } = await supabase
         .from("service_history")
         .delete()
-        .eq("id", id)
+        .eq("id", serviceHistoryToDeleteId)
         .eq("user_id", user.id); // Extra security check
 
       if (error) {
@@ -185,7 +190,7 @@ export default function ServiceHistory() {
 
       // Update the UI by removing the deleted entry
       setServiceHistoryList((prevList) =>
-        prevList.filter((item) => item.id !== id),
+        prevList.filter((item) => item.id !== serviceHistoryToDeleteId),
       );
 
       // Show success message
@@ -197,6 +202,7 @@ export default function ServiceHistory() {
       );
     } finally {
       setDeletingId(null); // Reset deleting state
+      setServiceHistoryToDeleteId(null); // Reset ID state
     }
   };
 
@@ -540,6 +546,18 @@ export default function ServiceHistory() {
         onUpdate={handleUpdateServiceHistory}
         initialData={editingServiceHistory}
         isEditing={true}
+      />
+
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={isConfirmModalOpen}
+        onClose={() => {
+          setIsConfirmModalOpen(false);
+          setServiceHistoryToDeleteId(null); // Reset ID on cancel
+        }}
+        onConfirm={confirmDeletion} // Pass the deletion logic function
+        title="Confirm Deletion"
+        message="Are you sure you want to delete this service history entry? This action cannot be undone."
       />
     </div>
   );
