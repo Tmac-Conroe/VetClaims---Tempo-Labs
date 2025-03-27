@@ -90,7 +90,7 @@ export const signInAction = async (formData: FormData) => {
     if (!email || !password) {
       return {
         success: false,
-        redirectTo: "/sign-in",
+        redirectTo: "/",
         error: "Email and password are required",
       };
     }
@@ -104,7 +104,7 @@ export const signInAction = async (formData: FormData) => {
       console.error("Sign in error:", error);
       return {
         success: false,
-        redirectTo: "/sign-in",
+        redirectTo: "/",
         error: error.message,
       };
     }
@@ -116,7 +116,7 @@ export const signInAction = async (formData: FormData) => {
     console.error("Sign in error:", error);
     return {
       success: false,
-      redirectTo: "/sign-in",
+      redirectTo: "/",
       error: "An unexpected error occurred. Please try again.",
     };
   }
@@ -223,9 +223,9 @@ export const signOutAction = async () => {
   try {
     const supabase = await createClient();
     await supabase.auth.signOut();
-    return { success: true, redirectTo: "/sign-in" };
+    return { success: true, redirectTo: "/" };
   } catch (error) {
     console.error("Sign out error:", error);
-    return { success: true, redirectTo: "/sign-in" };
+    return { success: true, redirectTo: "/" };
   }
 };

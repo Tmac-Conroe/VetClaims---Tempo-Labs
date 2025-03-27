@@ -20,9 +20,15 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith(route),
   );
 
-  // If trying to access a protected route without authentication, redirect to sign-in
+  // If trying to access a protected route without authentication, redirect to home page
   if (isProtectedRoute && !isAuthenticated) {
-    const redirectUrl = new URL("/sign-in", request.url);
+    const redirectUrl = new URL("/", request.url);
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  // Redirect /sign-in to the landing page
+  if (pathname === "/sign-in") {
+    const redirectUrl = new URL("/", request.url);
     return NextResponse.redirect(redirectUrl);
   }
 
