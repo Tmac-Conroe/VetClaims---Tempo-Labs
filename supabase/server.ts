@@ -18,17 +18,6 @@ export const createClient = async () => {
         remove(name, options) {
           cookieStore.set(name, "", options);
         },
-        getAll() {
-          return cookieStore.getAll().map(({ name, value }) => ({
-            name,
-            value,
-          }));
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set(name, value, options);
-          });
-        },
       },
     },
   );
