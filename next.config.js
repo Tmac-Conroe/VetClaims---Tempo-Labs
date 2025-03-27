@@ -8,6 +8,13 @@ const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: ["@supabase/ssr"],
   },
+  // Disable webpack caching in development to prevent ENOENT errors
+  webpack: (config, { dev }) => {
+    if (dev) {
+      config.cache = false;
+    }
+    return config;
+  },
 };
 
 if (process.env.NEXT_PUBLIC_TEMPO) {

@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import DashboardNavbar from "@/components/dashboard-navbar";
 
 export default function Dashboard() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -76,7 +76,7 @@ export default function Dashboard() {
 
           if (profileData) {
             // Update user with profile data if available
-            setUser((prev) => ({
+            setUser((prev: any) => ({
               ...prev,
               profile: profileData,
             }));
