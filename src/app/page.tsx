@@ -88,7 +88,17 @@ export default function Home() {
               <div className="bg-white p-6 sm:p-8 rounded-lg shadow-md w-full max-w-md border border-gray-200">
                 <Auth
                   supabaseClient={supabase}
-                  appearance={{ theme: ThemeSupa }}
+                  appearance={{
+                    theme: ThemeSupa,
+                    variables: {
+                      default: {
+                        colors: {
+                          brand: "rgb(59 130 246)", // blue-500
+                          brandAccent: "rgb(37 99 235)", // blue-600
+                        },
+                      },
+                    },
+                  }}
                   providers={[]}
                   view="sign_in"
                   redirectTo="/dashboard"

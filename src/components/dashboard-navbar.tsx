@@ -18,9 +18,9 @@ export default function DashboardNavbar() {
   const handleSignOut = async () => {
     try {
       const result = await signOutAction();
-      if (result && "success" in result && result.redirectTo) {
+      if (result && "success" in result) {
         router.refresh();
-        router.push(result.redirectTo);
+        router.push("/");
       }
     } catch (error) {
       console.error("Error signing out:", error);
