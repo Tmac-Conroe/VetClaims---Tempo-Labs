@@ -6,6 +6,9 @@ import { createClient } from "../../../../supabase/client";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import ConfirmationModal from "@/components/confirmation-modal";
+import { Sheet } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+import AddConditionSheet from "@/components/add-condition-sheet";
 
 export default function ConditionsPage() {
   const [user, setUser] = useState<any>(null);
@@ -35,6 +38,9 @@ export default function ConditionsPage() {
   const [deletingCondition, setDeletingCondition] = useState<string | null>(
     null,
   );
+  const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
+  const [isSubmittingCustomCondition, setIsSubmittingCustomCondition] =
+    useState(false);
 
   // State variables for confirmation modal
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
@@ -309,6 +315,50 @@ export default function ConditionsPage() {
     );
   }
 
+  const handleAddNewCondition = async (name: string) => {
+    if (!user) {
+      toast.error("You must be logged in to add conditions.");
+      return;
+    }
+    if (!name) {
+      console.log("Attempting to show empty condition name toast.");
+      toast.error("Condition name cannot be empty.");
+      return;
+    }
+
+    setIsSubmittingCustomCondition(true);
+    const supabase = createClient();
+
+    try {
+      const { error } = await supabase.from("conditions").insert({
+        user_id: user.id,
+        condition_name: name,
+        condition_status: "confirmed", // Using confirmed status to match the constraint
+        // created_at and updated_at should be handled by default values or triggers if set up
+      });
+
+      if (error) {
+        if (error.code === "23505") {
+          // Unique constraint violation
+          toast.error(`Condition "${name}" already exists in your list.`);
+        } else {
+          console.error("Error adding custom condition:", error);
+          toast.error(`Failed to add condition: ${error.message}`);
+        }
+      } else {
+        toast.success(`Condition "${name}" added successfully.`);
+        fetchActiveConditions(); // Refresh the active conditions list
+        setIsAddSheetOpen(false); // Close the sheet on success
+        // Consider clearing the input in AddConditionSheet if it stays open, but we close it here.
+      }
+    } catch (err) {
+      console.error("Unexpected error adding custom condition:", err);
+      toast.error("An unexpected error occurred. Please try again.");
+    } finally {
+      setIsSubmittingCustomCondition(false);
+    }
+  };
+
   return (
     <div className="h-screen w-full flex flex-col bg-gray-50">
       {/* Dashboard Navbar */}
@@ -372,7 +422,14 @@ export default function ConditionsPage() {
             </p>
 
             {/* Confirm Conditions Button */}
-            <div className="flex justify-center border-t border-gray-200 pt-4 mt-4">
+            <div className="flex justify-center border-t border-gray-200 pt-4 mt-4 space-x-2">
+              <Button
+                variant="outline"
+                className="w-full md:w-64"
+                onClick={() => setIsAddSheetOpen(true)}
+              >
+                Add Custom Condition
+              </Button>
               <button
                 className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded w-full md:w-64 transition-colors"
                 onClick={handleConfirmConditions}
@@ -417,6 +474,15 @@ export default function ConditionsPage() {
           </div>
         </div>
       </main>
+
+      {/* Sheet for adding custom conditions */}
+      <Sheet open={isAddSheetOpen} onOpenChange={setIsAddSheetOpen}>
+        <AddConditionSheet
+          onClose={() => setIsAddSheetOpen(false)}
+          onSubmit={handleAddNewCondition}
+          isSubmitting={isSubmittingCustomCondition}
+        />
+      </Sheet>
 
       {/* Confirmation Modal */}
       <ConfirmationModal
