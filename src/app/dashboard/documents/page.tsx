@@ -76,27 +76,116 @@ export default function DocumentsPage() {
   const fetchDocuments = async () => {
     if (!user) return;
     setDocumentsLoading(true);
-    // TODO: Implement Supabase fetch logic here
-    console.log("Fetching documents...");
-    // Placeholder: Clear documents for now
-    setDocuments([]);
-    await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate loading
-    setDocumentsLoading(false);
-    console.log("Finished fetching (placeholder).");
+    const supabase = createClient();
+
+    try {
+      const { data, error } = await supabase
+        .from("documents")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("uploaded_at", { ascending: false }); // Show newest first
+
+      if (error) {
+        console.error("Error fetching documents:", error);
+        toast.error(`Failed to load documents: ${error.message}`);
+        setDocuments([]); // Set empty array on error
+      } else {
+        console.log("Fetched documents:", data);
+        setDocuments(data || []);
+      }
+    } catch (err) {
+      console.error("Unexpected error fetching documents:", err);
+      toast.error("An unexpected error occurred while loading documents.");
+      setDocuments([]); // Set empty array on unexpected error
+    } finally {
+      setDocumentsLoading(false);
+    }
   };
 
   // --- Upload Logic (Placeholder) ---
   const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    // TODO: Implement Supabase upload logic here
-    console.log("Upload handler triggered");
     const file = event.target.files?.[0];
-    if (!file) return;
-    console.log("File selected:", file.name);
+    if (!file || !user) {
+      // Clear the file input value in case the same file is selected again
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      return;
+    }
+
+    // Optional: Check file size (example: max 50MB)
+    const maxSize = 50 * 1024 * 1024; // 50 MB in bytes
+    if (file.size > maxSize) {
+      toast.error(`File size exceeds the limit of 50 MB.`);
+      // Clear the file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      return;
+    }
+
     setUploading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500)); // Simulate upload
-    setUploading(false);
-    toast.success(`Placeholder: "${file.name}" uploaded.`);
-    fetchDocuments(); // Refresh list after upload
+    const supabase = createClient();
+    // Generate a unique path: user_id/uuid_or_timestamp_prefix_filename.ext
+    // Using timestamp and original name for simplicity here, UUID is safer for absolute uniqueness
+    const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`; // Sanitize filename slightly
+    const filePath = `${user.id}/${fileName}`;
+
+    try {
+      // 1. Upload to Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from("claim-documents") // Use the correct bucket name
+        .upload(filePath, file);
+
+      if (uploadError) {
+        console.error("Error uploading file:", uploadError);
+        toast.error(`Upload failed: ${uploadError.message}`);
+        throw uploadError; // Stop execution if upload fails
+      }
+
+      console.log("File uploaded successfully:", uploadData);
+
+      // 2. Insert metadata into the 'documents' table
+      const { error: insertError } = await supabase.from("documents").insert({
+        user_id: user.id,
+        file_name: file.name, // Store original file name
+        storage_path: uploadData.path, // Use path from upload response
+        mime_type: file.type,
+        size_bytes: file.size,
+        uploaded_at: new Date().toISOString(), // Set upload time explicitly
+        // created_at, updated_at will use defaults
+      });
+
+      if (insertError) {
+        console.error("Error inserting document metadata:", insertError);
+        toast.error(`Failed to save document record: ${insertError.message}`);
+        // Attempt to clean up the uploaded file if DB insert fails
+        try {
+          await supabase.storage
+            .from("claim-documents")
+            .remove([uploadData.path]);
+          console.log("Cleaned up orphaned file from storage.");
+        } catch (cleanupError) {
+          console.error("Failed to cleanup orphaned file:", cleanupError);
+          toast.error("Failed to cleanup orphaned file after database error.");
+        }
+        throw insertError; // Stop execution
+      }
+
+      toast.success(`Document "${file.name}" uploaded successfully.`);
+      fetchDocuments(); // Refresh the list
+    } catch (err) {
+      // Errors thrown above will be caught here
+      console.error("Upload process failed:", err);
+      // Specific toasts are shown above, maybe a generic fallback here if needed
+      // toast.error('An unexpected error occurred during upload.');
+    } finally {
+      setUploading(false);
+      // Clear the file input value after attempt (success or fail)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
   };
 
   // --- Delete Logic (Placeholder/Setup) ---
@@ -106,16 +195,80 @@ export default function DocumentsPage() {
   };
 
   const confirmDelete = async () => {
-    if (!documentToDelete) return;
-    console.log("Deleting document:", documentToDelete.file_name);
-    setDocumentsLoading(true); // Indicate loading during delete
-    // TODO: Implement Supabase delete (storage & db) logic here
-    await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate delete
-    toast.success(`Placeholder: "${documentToDelete.file_name}" deleted.`);
-    setShowDeleteConfirm(false);
-    setDocumentToDelete(null);
-    fetchDocuments(); // Refresh list after delete
-    // setDocumentsLoading(false); // fetchDocuments will handle this
+    if (!documentToDelete || !user) return;
+
+    setDocumentsLoading(true); // Use documentsLoading to disable buttons during delete
+    setShowDeleteConfirm(false); // Close modal immediately
+    const supabase = createClient();
+    const docToDelete = documentToDelete; // Capture current value
+    setDocumentToDelete(null); // Clear state early
+
+    try {
+      // 1. Delete from Supabase Storage
+      const { error: storageError } = await supabase.storage
+        .from("claim-documents") // Use the correct bucket name
+        .remove([docToDelete.storage_path]);
+
+      if (storageError) {
+        console.error("Error deleting file from storage:", storageError);
+        // Handle specific error where file might not exist (e.g., code 404 or similar message)
+        // Supabase client v2 might return a specific error object structure or message
+        // We might want to ignore "Not Found" errors during cleanup or if deletion is retried
+        if (
+          storageError.message.includes("Not Found") ||
+          (storageError as any).statusCode === 404
+        ) {
+          console.warn(
+            `File not found in storage during deletion attempt (path: ${docToDelete.storage_path}), proceeding with DB deletion.`,
+          );
+        } else {
+          // For other storage errors, show toast and stop
+          toast.error(
+            `Failed to delete file from storage: ${storageError.message}`,
+          );
+          throw storageError; // Stop execution
+        }
+      } else {
+        console.log("File deleted from storage successfully.");
+      }
+
+      // 2. Delete metadata from the 'documents' table
+      const { error: dbError } = await supabase
+        .from("documents")
+        .delete()
+        .eq("id", docToDelete.id)
+        .eq("user_id", user.id); // Extra safety check
+
+      if (dbError) {
+        console.error("Error deleting document metadata:", dbError);
+        toast.error(`Failed to delete document record: ${dbError.message}`);
+        // The file might be deleted from storage, log potential inconsistency
+        console.warn(
+          `Inconsistency: File ${docToDelete.storage_path} might be deleted from storage, but DB record deletion failed.`,
+        );
+        throw dbError;
+      }
+
+      toast.success(
+        `Document "${docToDelete.file_name}" deleted successfully.`,
+      );
+      fetchDocuments(); // Refresh the list
+    } catch (err) {
+      console.error("Delete process failed:", err);
+      // Avoid showing generic error if specific one was already shown
+      if (
+        !(err as any)?.message?.includes("storage") &&
+        !(err as any)?.message?.includes("database")
+      ) {
+        toast.error("An error occurred during deletion.");
+      }
+      // Re-fetch documents even on error to ensure UI consistency
+      fetchDocuments();
+    } finally {
+      // Ensure loading is stopped and documentToDelete is null
+      // Note: setDocumentsLoading(false) is called within fetchDocuments
+      setDocumentToDelete(null);
+    }
   };
 
   const cancelDelete = () => {
