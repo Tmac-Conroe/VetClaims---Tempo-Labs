@@ -6,11 +6,20 @@ import Link from "next/link";
 import { createClient } from "../../../supabase/client";
 import { useEffect, useState } from "react";
 import DashboardNavbar from "@/components/dashboard-navbar";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import toast from "react-hot-toast";
 
 export default function Dashboard() {
   const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [serviceHistoryCount, setServiceHistoryCount] = useState<number | null>(
+    null,
+  );
+  const [activeConditionsCount, setActiveConditionsCount] = useState<
+    number | null
+  >(null);
+  const [countsLoading, setCountsLoading] = useState(true); // Start loading initially
   const router = useRouter();
 
   useEffect(() => {
@@ -97,6 +106,71 @@ export default function Dashboard() {
     fetchUser();
   }, [router]);
 
+  useEffect(() => {
+    if (user) {
+      const fetchCounts = async () => {
+        setCountsLoading(true);
+        const supabase = createClient();
+        let historyCount = 0;
+        let conditionsCount = 0;
+
+        try {
+          // Fetch Service History Count
+          const { count: historyDataCount, error: historyError } =
+            await supabase
+              .from("service_history")
+              .select("id", { count: "exact", head: true })
+              .eq("user_id", user.id);
+
+          if (historyError) {
+            console.error(
+              "Error fetching service history count:",
+              historyError,
+            );
+            toast.error("Could not load service history count.");
+          } else {
+            historyCount = historyDataCount ?? 0;
+          }
+
+          // Fetch Active Conditions Count
+          const { count: conditionsDataCount, error: conditionsError } =
+            await supabase
+              .from("conditions")
+              .select("id", { count: "exact", head: true })
+              .eq("user_id", user.id)
+              .eq("condition_status", "confirmed"); // Using confirmed status to match the existing code
+
+          if (conditionsError) {
+            console.error(
+              "Error fetching active conditions count:",
+              conditionsError,
+            );
+            toast.error("Could not load active conditions count.");
+          } else {
+            conditionsCount = conditionsDataCount ?? 0;
+          }
+
+          setServiceHistoryCount(historyCount);
+          setActiveConditionsCount(conditionsCount);
+        } catch (err) {
+          console.error("Unexpected error fetching counts:", err);
+          toast.error("An error occurred while loading progress.");
+          setServiceHistoryCount(0); // Default to 0 on unexpected error
+          setActiveConditionsCount(0);
+        } finally {
+          setCountsLoading(false);
+        }
+      };
+
+      fetchCounts();
+    } else {
+      // Reset counts if user logs out or is not available
+      setCountsLoading(false);
+      setServiceHistoryCount(null);
+      setActiveConditionsCount(null);
+    }
+  }, [user]); // Re-run this effect if the user object changes
+
   if (loading) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center">
@@ -154,6 +228,53 @@ export default function Dashboard() {
       {/* Main Content Area */}
       <main className="flex-1 p-4 md:p-6">
         <div className="container mx-auto max-w-5xl">
+          {/* Progress Indicators Section */}
+          <section className="mb-6">
+            <h2 className="text-lg font-semibold text-gray-700 mb-3 text-center md:text-left">
+              Your Progress
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base font-medium text-gray-600">
+                    Service History
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {countsLoading ? (
+                    <p className="text-2xl font-bold text-gray-800 animate-pulse">
+                      Loading...
+                    </p>
+                  ) : (
+                    <p className="text-2xl font-bold text-gray-800">
+                      {serviceHistoryCount ?? 0} Record
+                      {serviceHistoryCount !== 1 ? "s" : ""}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base font-medium text-gray-600">
+                    Active Conditions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {countsLoading ? (
+                    <p className="text-2xl font-bold text-gray-800 animate-pulse">
+                      Loading...
+                    </p>
+                  ) : (
+                    <p className="text-2xl font-bold text-gray-800">
+                      {activeConditionsCount ?? 0} Condition
+                      {activeConditionsCount !== 1 ? "s" : ""}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </section>
+
           {/* Navigation Buttons Section */}
           <section className="flex flex-col items-center justify-center mt-4 space-y-3">
             <button
