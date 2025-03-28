@@ -45,6 +45,12 @@ export default function DashboardNavbar() {
           >
             Dashboard
           </Link>
+          <Link
+            href="/dashboard/documents"
+            className="px-3 py-1.5 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-200 rounded-md transition-colors"
+          >
+            Documents
+          </Link>
           <Button
             onClick={handleSignOut}
             className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-1.5 px-3 rounded-md text-sm transition-colors"
