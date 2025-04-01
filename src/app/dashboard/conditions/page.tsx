@@ -41,6 +41,9 @@ export default function ConditionsPage() {
   const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
   const [isSubmittingCustomCondition, setIsSubmittingCustomCondition] =
     useState(false);
+  const [suggestedConditions, setSuggestedConditions] = useState<string[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
 
   // State variables for confirmation modal
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
@@ -220,6 +223,77 @@ export default function ConditionsPage() {
     }
   };
 
+  const fetchSuggestions = async () => {
+    // Ensure we have a user and potentially some service history to base suggestions on
+    // For now, we'll just check for the user. We can add service history check later.
+    if (!user) {
+      console.log("User not available for fetching suggestions.");
+      return;
+    }
+
+    setSuggestionsLoading(true);
+    setSuggestionsError(null); // Clear previous errors
+    setSuggestedConditions([]); // Clear previous suggestions
+
+    try {
+      console.log("Invoking suggest-conditions function...");
+      const supabase = createClient();
+
+      // TODO: Get actual service branch and job title from the user's service history
+      // For now, using placeholder values for testing. Replace these later.
+      const placeholderBranch = "Army";
+      const placeholderJob = "Infantryman";
+
+      if (!placeholderBranch || !placeholderJob) {
+        console.warn(
+          "Service branch or job title missing, cannot fetch suggestions.",
+        );
+        setSuggestionsLoading(false);
+        setSuggestionsError("Add your service history to get suggestions.");
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke(
+        "suggest-conditions",
+        {
+          body: {
+            service_branch: placeholderBranch,
+            job_title: placeholderJob,
+          },
+        },
+      );
+
+      if (error) {
+        console.error("Error invoking suggest-conditions function:", error);
+        setSuggestionsError(`Failed to load suggestions: ${error.message}`);
+        toast.error(`Failed to load suggestions: ${error.message}`);
+      } else if (data && data.suggested_conditions) {
+        console.log("Suggestions received:", data.suggested_conditions);
+        setSuggestedConditions(data.suggested_conditions);
+      } else {
+        console.error("Invalid data structure received:", data);
+        setSuggestionsError("Received invalid suggestion data format.");
+        toast.error("Received invalid suggestion data format.");
+      }
+    } catch (err) {
+      console.error("Unexpected error fetching suggestions:", err);
+      const errorMessage =
+        err instanceof Error ? err.message : "An unknown error occurred.";
+      setSuggestionsError(`An unexpected error occurred: ${errorMessage}`);
+      toast.error(`An unexpected error occurred while fetching suggestions.`);
+    } finally {
+      setSuggestionsLoading(false);
+    }
+  };
+
+  // Trigger fetchSuggestions when user data is available
+  useEffect(() => {
+    if (user) {
+      fetchSuggestions();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]); // Trigger when user data becomes available
+
   // Fetch active conditions when user is available
   useEffect(() => {
     if (user) {
@@ -374,6 +448,34 @@ export default function ConditionsPage() {
       {/* Main Content Area */}
       <main className="flex-1 p-4 md:p-6 flex flex-col items-center overflow-y-auto">
         <div className="container mx-auto max-w-5xl">
+          {/* AI Suggested Conditions Section */}
+          <div className="border border-blue-200 bg-blue-50 rounded-md p-4 mb-6 w-full max-w-lg mx-auto shadow-sm">
+            <h3 className="text-lg font-semibold text-blue-800 mb-3 text-center">
+              AI Suggested Conditions
+            </h3>
+            {suggestionsLoading ? (
+              <p className="text-blue-700 italic text-center animate-pulse">
+                Loading suggestions based on your service...
+              </p>
+            ) : suggestionsError ? (
+              <p className="text-red-600 text-center">{suggestionsError}</p>
+            ) : suggestedConditions.length === 0 ? (
+              <p className="text-gray-500 italic text-center">
+                No suggestions available currently.
+              </p>
+            ) : (
+              <ul className="space-y-1 list-disc list-inside text-sm text-blue-900 pl-4">
+                {suggestedConditions.map((condition, index) => (
+                  <li key={index}>{condition}</li>
+                ))}
+              </ul>
+            )}
+            {/* Optional: Add a button to manually refresh suggestions later */}
+            {/* <div className="text-center mt-3">
+                  <Button variant="link" size="sm" onClick={fetchSuggestions} disabled={suggestionsLoading}>Refresh Suggestions</Button>
+              </div> */}
+          </div>
+
           {/* Common Condition List with Checkboxes */}
           <div className="border border-gray-300 rounded-md p-6 mb-4 w-full max-w-lg mx-auto bg-white shadow-md">
             <h2 className="text-xl font-semibold text-gray-800 mb-5">

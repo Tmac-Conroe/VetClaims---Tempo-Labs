@@ -17,4 +17,4 @@ FOR SELECT
 USING (true);
 
 -- Enable realtime
-alter publication supabase_realtime add table users;
+--alter publication supabase_realtime add table users;
