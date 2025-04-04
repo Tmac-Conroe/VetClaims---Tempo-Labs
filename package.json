@@ -39,7 +39,7 @@
     "react-hot-toast": "^2.5.2",
     "react-resizable-panels": "^2.1.7",
     "stripe": "^17.6.0",
-    "tempo-devtools": "^2.0.94",
+    "tempo-devtools": "^2.0.99",
     "vaul": "^1.1.2"
   },
   "devDependencies": {
@@ -48,6 +48,7 @@
     "@types/react-dom": "^18",
     "mini-css-extract-plugin": "^2.9.2",
     "postcss": "^8",
+    "supabase": "^2.20.5",
     "tailwind-merge": "^2",
     "tailwindcss": "^3",
     "tailwindcss-animate": "^1",
