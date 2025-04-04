@@ -236,29 +236,54 @@ export default function ConditionsPage() {
     setSuggestedConditions([]); // Clear previous suggestions
 
     try {
-      console.log("Invoking suggest-conditions function...");
-      const supabase = createClient();
+      const supabase = createClient(); // Ensure supabase client is initialized
 
-      // TODO: Get actual service branch and job title from the user's service history
-      // For now, using placeholder values for testing. Replace these later.
-      const placeholderBranch = "Army";
-      const placeholderJob = "Infantryman";
+      // Fetch the most recent service history entry based on end_date
+      const { data: historyData, error: historyError } = await supabase
+        .from("service_history")
+        .select("branch, job") // Select only needed fields
+        .eq("user_id", user.id)
+        .order("end_date", { ascending: false }) // Get the latest entry first
+        .limit(1) // We only need one entry
+        .maybeSingle(); // Use maybeSingle to handle 0 or 1 result gracefully
 
-      if (!placeholderBranch || !placeholderJob) {
-        console.warn(
-          "Service branch or job title missing, cannot fetch suggestions.",
+      if (historyError) {
+        console.error(
+          "Error fetching service history for suggestions:",
+          historyError,
         );
-        setSuggestionsLoading(false);
-        setSuggestionsError("Add your service history to get suggestions.");
-        return;
+        setSuggestionsError(
+          "Could not retrieve service history for suggestions.",
+        );
+        setSuggestionsLoading(false); // Stop loading
+        return; // Exit the function
       }
+
+      if (!historyData || !historyData.branch || !historyData.job) {
+        console.warn("No relevant service history found for suggestions.");
+        // Display a user-friendly message instead of an error if no history exists
+        setSuggestionsError(
+          "Add your service history to get personalized suggestions.",
+        );
+        setSuggestionsLoading(false); // Stop loading
+        return; // Exit the function
+      }
+
+      // Use the actual branch and job from the fetched data
+      const actualBranch = historyData.branch;
+      const actualJob = historyData.job;
+
+      console.log(
+        `Using service history for suggestions: Branch=${actualBranch}, Job=${actualJob}`,
+      );
+      console.log("Invoking suggest-conditions function...");
 
       const { data, error } = await supabase.functions.invoke(
         "suggest-conditions",
         {
           body: {
-            service_branch: placeholderBranch,
-            job_title: placeholderJob,
+            service_branch: actualBranch, // Use actual data
+            job_title: actualJob, // Use actual data
           },
         },
       );
@@ -389,12 +414,16 @@ export default function ConditionsPage() {
     );
   }
 
-  const handleAddNewCondition = async (name: string) => {
+  const handleAddNewCondition = async (data: {
+    name: string;
+    claimType: string;
+    diagnosticCode: string | null;
+  }) => {
     if (!user) {
       toast.error("You must be logged in to add conditions.");
       return;
     }
-    if (!name) {
+    if (!data.name) {
       console.log("Attempting to show empty condition name toast.");
       toast.error("Condition name cannot be empty.");
       return;
@@ -406,21 +435,23 @@ export default function ConditionsPage() {
     try {
       const { error } = await supabase.from("conditions").insert({
         user_id: user.id,
-        condition_name: name,
+        condition_name: data.name,
         condition_status: "confirmed", // Using confirmed status to match the constraint
+        claim_type: data.claimType,
+        diagnostic_code: data.diagnosticCode,
         // created_at and updated_at should be handled by default values or triggers if set up
       });
 
       if (error) {
         if (error.code === "23505") {
           // Unique constraint violation
-          toast.error(`Condition "${name}" already exists in your list.`);
+          toast.error(`Condition "${data.name}" already exists in your list.`);
         } else {
           console.error("Error adding custom condition:", error);
           toast.error(`Failed to add condition: ${error.message}`);
         }
       } else {
-        toast.success(`Condition "${name}" added successfully.`);
+        toast.success(`Condition "${data.name}" added successfully.`);
         fetchActiveConditions(); // Refresh the active conditions list
         setIsAddSheetOpen(false); // Close the sheet on success
         // Consider clearing the input in AddConditionSheet if it stays open, but we close it here.
