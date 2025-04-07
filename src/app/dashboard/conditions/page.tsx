@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import DashboardNavbar from "@/components/dashboard-navbar";
 import { useRouter } from "next/navigation";
 import { createClient } from "../../../../supabase/client";
@@ -9,6 +10,13 @@ import ConfirmationModal from "@/components/confirmation-modal";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import AddConditionSheet from "@/components/add-condition-sheet";
+
+type ActiveCondition = {
+  id: string;
+  condition_name: string;
+  claim_type: string | null;
+  diagnostic_code: string | null;
+};
 
 export default function ConditionsPage() {
   const [user, setUser] = useState<any>(null);
@@ -33,9 +41,11 @@ export default function ConditionsPage() {
 
   // State for tracking selected and active conditions
   const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
-  const [activeConditions, setActiveConditions] = useState<string[]>([]);
+  const [activeConditions, setActiveConditions] = useState<ActiveCondition[]>(
+    [],
+  );
   const [fetchingConditions, setFetchingConditions] = useState(false);
-  const [deletingCondition, setDeletingCondition] = useState<string | null>(
+  const [deletingConditionId, setDeletingConditionId] = useState<string | null>(
     null,
   );
   const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
@@ -47,7 +57,7 @@ export default function ConditionsPage() {
 
   // State variables for confirmation modal
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-  const [conditionToDelete, setConditionToDelete] = useState<string | null>(
+  const [conditionIdToDelete, setConditionIdToDelete] = useState<string | null>(
     null,
   );
 
@@ -75,7 +85,7 @@ export default function ConditionsPage() {
 
       const { data, error } = await supabase
         .from("conditions")
-        .select("*")
+        .select("id, condition_name, claim_type, diagnostic_code")
         .eq("user_id", user.id);
 
       if (error) {
@@ -84,8 +94,8 @@ export default function ConditionsPage() {
       }
 
       if (data) {
-        // Extract condition names from the data and update state
-        setActiveConditions(data.map((condition) => condition.condition_name));
+        // Set active conditions with the fetched data
+        setActiveConditions(data as ActiveCondition[]);
         console.log("Active conditions fetched:", data);
       }
     } catch (err) {
@@ -103,13 +113,23 @@ export default function ConditionsPage() {
     }
 
     console.log("Attempting to confirm conditions:", selectedConditions);
-    const supabase = createClient(); // Assuming createClient() is already imported
+    const supabase = createClient();
     let errorOccurred = false; // Flag to track if any non-duplicate error happened
 
     // Use Promise.all to handle multiple inserts concurrently
     await Promise.all(
       selectedConditions.map(async (conditionName) => {
         try {
+          // Check if condition already exists in active conditions
+          if (
+            activeConditions.some((c) => c.condition_name === conditionName)
+          ) {
+            console.log(
+              `Condition "${conditionName}" already exists for user.`,
+            );
+            return; // Skip this condition
+          }
+
           // Attempt to insert the condition
           const { data, error } = await supabase
             .from("conditions")
@@ -117,6 +137,8 @@ export default function ConditionsPage() {
               user_id: user.id,
               condition_name: conditionName,
               condition_status: "confirmed", // Set status to confirmed
+              claim_type: "Primary", // Default to Primary for common conditions
+              diagnostic_code: null, // Default to null for common conditions
             })
             .select() // Select to get the inserted data or handle errors
             .single(); // Use single() if you expect only one row or an error
@@ -181,24 +203,24 @@ export default function ConditionsPage() {
   };
 
   // Handle opening the confirmation modal for removing a condition
-  const handleRemoveActiveCondition = (conditionName: string) => {
-    setConditionToDelete(conditionName);
+  const handleRemoveActiveCondition = (conditionId: string) => {
+    setConditionIdToDelete(conditionId);
     setIsConfirmModalOpen(true);
   };
 
   // Handle confirming the deletion of a condition
   const confirmDeletion = async () => {
-    if (!conditionToDelete || !user) return; // Check if conditionToDelete is set and user exists
+    if (!conditionIdToDelete || !user) return; // Check if conditionIdToDelete is set and user exists
 
     try {
-      setDeletingCondition(conditionToDelete); // Use the state variable
+      setDeletingConditionId(conditionIdToDelete); // Use the state variable
       setIsConfirmModalOpen(false); // Close modal immediately when confirm is clicked
 
       const supabase = createClient();
       const { error } = await supabase
         .from("conditions")
         .delete()
-        .eq("condition_name", conditionToDelete) // Use state variable
+        .eq("id", conditionIdToDelete) // Use ID instead of name
         .eq("user_id", user.id);
 
       if (error) {
@@ -210,16 +232,15 @@ export default function ConditionsPage() {
       // Refresh the active conditions list
       await fetchActiveConditions();
 
-      console.log(`Condition "${conditionToDelete}" removed successfully`);
-      toast.success(`Condition "${conditionToDelete}" removed successfully`);
+      toast.success("Condition removed successfully");
     } catch (err) {
       console.error("Error removing condition:", err);
       toast.error(
         "An unexpected error occurred while removing the condition. Please try again.",
       );
     } finally {
-      setDeletingCondition(null); // Reset deleting state
-      setConditionToDelete(null); // Reset condition to delete state
+      setDeletingConditionId(null); // Reset deleting state
+      setConditionIdToDelete(null); // Reset condition to delete state
     }
   };
 
@@ -414,6 +435,11 @@ export default function ConditionsPage() {
     );
   }
 
+  // Find condition name for deletion confirmation
+  const conditionNameToDelete = activeConditions.find(
+    (c) => c.id === conditionIdToDelete,
+  )?.condition_name;
+
   const handleAddNewCondition = async (data: {
     name: string;
     claimType: string;
@@ -465,7 +491,7 @@ export default function ConditionsPage() {
   };
 
   return (
-    <div className="h-screen w-full flex flex-col bg-gray-50">
+    <div className="min-h-screen w-full flex flex-col bg-gray-50">
       {/* Dashboard Navbar */}
       <DashboardNavbar />
 
@@ -513,39 +539,42 @@ export default function ConditionsPage() {
               Common Condition List
             </h2>
             <div className="space-y-1 mb-4 border-t border-gray-200 pt-4">
-              {commonConditions.map((condition) => (
-                <div
-                  key={condition}
-                  className={`flex items-center py-1 rounded px-2 -mx-2 ${
-                    activeConditions.includes(condition)
-                      ? "opacity-70 cursor-not-allowed"
-                      : "hover:bg-gray-50"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    id={condition}
-                    value={condition}
-                    checked={
-                      selectedConditions.includes(condition) ||
-                      activeConditions.includes(condition)
-                    }
-                    onChange={handleCheckboxChange}
-                    disabled={activeConditions.includes(condition)}
-                    className="mr-2 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-50"
-                  />
-                  <label
-                    htmlFor={condition}
-                    className={`text-gray-700 ${
-                      activeConditions.includes(condition)
-                        ? "cursor-not-allowed"
-                        : ""
+              {commonConditions.map((condition) => {
+                // Check if condition already exists in active conditions
+                const isActive = activeConditions.some(
+                  (ac) => ac.condition_name === condition,
+                );
+                return (
+                  <div
+                    key={condition}
+                    className={`flex items-center py-1 rounded px-2 -mx-2 ${
+                      isActive
+                        ? "opacity-70 cursor-not-allowed"
+                        : "hover:bg-gray-50"
                     }`}
                   >
-                    {condition}
-                  </label>
-                </div>
-              ))}
+                    <input
+                      type="checkbox"
+                      id={condition}
+                      value={condition}
+                      checked={
+                        selectedConditions.includes(condition) || isActive
+                      }
+                      onChange={handleCheckboxChange}
+                      disabled={isActive}
+                      className="mr-2 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-50"
+                    />
+                    <label
+                      htmlFor={condition}
+                      className={`text-gray-700 ${
+                        isActive ? "cursor-not-allowed" : ""
+                      }`}
+                    >
+                      {condition}
+                    </label>
+                  </div>
+                );
+              })}
             </div>
 
             {/* Instructional Text */}
@@ -564,9 +593,14 @@ export default function ConditionsPage() {
                 Add Custom Condition
               </Button>
               <button
-                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded w-full md:w-64 transition-colors"
+                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded w-full md:w-64 transition-colors disabled:opacity-50 disabled:bg-blue-300"
                 onClick={handleConfirmConditions}
-                disabled={selectedConditions.length === 0}
+                disabled={
+                  selectedConditions.length === 0 ||
+                  selectedConditions.every((sc) =>
+                    activeConditions.some((ac) => ac.condition_name === sc),
+                  )
+                }
               >
                 Confirm Conditions
               </button>
@@ -587,19 +621,41 @@ export default function ConditionsPage() {
               <ul className="space-y-2">
                 {activeConditions.map((condition) => (
                   <li
-                    key={condition}
-                    className="flex justify-between items-center py-1 px-2 rounded hover:bg-gray-50"
+                    key={condition.id}
+                    className="flex justify-between items-center py-2 px-3 rounded border border-gray-100 hover:bg-gray-50"
                   >
-                    <span className="text-gray-700">{condition}</span>
-                    <button
-                      onClick={() => handleRemoveActiveCondition(condition)}
-                      disabled={deletingCondition === condition}
-                      className="text-red-500 hover:text-red-700 text-sm font-medium transition-colors"
-                    >
-                      {deletingCondition === condition
-                        ? "Removing..."
-                        : "Remove"}
-                    </button>
+                    <div className="flex flex-col">
+                      <span className="text-gray-800 font-medium">
+                        {condition.condition_name}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        {condition.claim_type || "Primary"}
+                        {condition.diagnostic_code &&
+                          ` • Code: ${condition.diagnostic_code}`}
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Link
+                        href={`/dashboard/conditions/${condition.id}/review`}
+                      >
+                        <Button variant="outline" size="sm" className="text-xs">
+                          Review / Interview
+                        </Button>
+                      </Link>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          handleRemoveActiveCondition(condition.id)
+                        }
+                        disabled={deletingConditionId === condition.id}
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50 text-xs"
+                      >
+                        {deletingConditionId === condition.id
+                          ? "Removing..."
+                          : "Remove"}
+                      </Button>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -622,12 +678,13 @@ export default function ConditionsPage() {
         isOpen={isConfirmModalOpen}
         onClose={() => {
           setIsConfirmModalOpen(false);
-          setConditionToDelete(null); // Also reset conditionToDelete on cancel
+          setConditionIdToDelete(null); // Also reset conditionIdToDelete on cancel
         }}
         onConfirm={confirmDeletion} // Pass the deletion logic function
         title="Confirm Deletion"
         // Dynamically set the message based on the condition to delete
-        message={`Are you sure you want to remove "${conditionToDelete || ""}" from your active conditions?`}
+        message={`Are you sure you want to remove "${conditionNameToDelete || "this condition"}" from your active conditions?`}
+        confirmText="Remove"
       />
     </div>
   );
